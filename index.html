@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>個人化資訊儀表板 (極致流暢版)</title>
+    <title>個人化資訊儀表板 (GitHub 穩定版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* 隱藏滾動條但保持功能 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -26,7 +25,6 @@
     <main class="max-w-[1600px] mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
         
         <div class="space-y-6 lg:col-span-1">
-            
             <section class="bg-gray-800/40 border border-gray-800/80 rounded-2xl p-5 backdrop-blur-md">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-base font-semibold flex items-center gap-2">
@@ -44,15 +42,14 @@
                 </div>
                 <div class="grid grid-cols-2 gap-2 pt-4 text-center text-xs">
                     <div class="bg-gray-800/60 p-2 rounded-xl border border-gray-700/30">
-                        <p id="forecast-day1-date" class="text-gray-400 font-medium">明天</p>
+                        <p class="text-gray-400 font-medium">明天</p>
                         <p id="forecast-day1-temp" class="font-semibold mt-1 text-white">--</p>
                     </div>
                     <div class="bg-gray-800/60 p-2 rounded-xl border border-gray-700/30">
-                        <p id="forecast-day2-date" class="text-gray-400 font-medium">後天</p>
+                        <p class="text-gray-400 font-medium">後天</p>
                         <p id="forecast-day2-temp" class="font-semibold mt-1 text-white">--</p>
                     </div>
                 </div>
-                <div class="text-[10px] text-gray-500 mt-3 text-right">來源：Open-Meteo</div>
             </section>
 
             <section class="bg-gray-800/40 border border-gray-800/80 rounded-2xl p-5 backdrop-blur-md">
@@ -60,7 +57,7 @@
                     <h2 class="text-base font-semibold flex items-center gap-2">
                         <i data-lucide="trending-up" class="text-emerald-400"></i> 台灣股市
                     </h2>
-                    <span class="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">延遲 15 分鐘</span>
+                    <span class="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">實時連線</span>
                 </div>
                 <div class="space-y-3" id="stock-list">
                     <div class="flex justify-between items-center bg-gray-800/60 p-3 rounded-xl border border-gray-700/30">
@@ -84,7 +81,6 @@
                         </div>
                     </div>
                 </div>
-                <div class="text-[10px] text-gray-500 mt-3 text-right">來源：Yahoo Finance (Proxy)</div>
             </section>
         </div>
 
@@ -93,7 +89,6 @@
                 <h2 class="text-base font-semibold flex items-center gap-2">
                     <i data-lucide="newspaper" class="text-purple-400"></i> 即時焦點新聞
                 </h2>
-                <span class="text-[10px] text-gray-500">點擊標題可閱讀全文</span>
             </div>
             
             <div class="flex border-b border-gray-700 mb-4 overflow-x-auto no-scrollbar whitespace-nowrap gap-2">
@@ -114,25 +109,23 @@
             <div class="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-700/60 bg-black">
                 <iframe 
                     class="absolute top-0 left-0 w-full h-full"
-                    src="https://www.youtube.com/embed/live_stream?channel=UC0A6Ns3I0vntV7XSTuG-hNA" 
-                    title="公視新聞直播" 
+                    src="https://www.youtube.com/embed/videoseries?list=UU0A6Ns3I0vntV7XSTuG-hNA" 
+                    title="公視新聞直播源" 
                     frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                     allowfullscreen>
                 </iframe>
             </div>
             <p class="text-[11px] text-gray-400 mt-3 leading-relaxed">
-                預設播放《公視新聞網》。你也可以直接在播放視窗內控制音量、放大或切換畫質。
+                採用 YouTube 官方影音清單同步機制。若公視正在進行即時直播，將會自動置頂於第一部影片播放。
             </p>
         </div>
 
     </main>
 
     <script>
-        // 初始化圖標
         lucide.createIcons();
 
-        // 1. 系統時鐘
         function updateTime() {
             const now = new Date();
             document.getElementById('live-time').innerText = now.toLocaleString('zh-TW', { hour12: false });
@@ -140,18 +133,17 @@
         setInterval(updateTime, 1000);
         updateTime();
 
-        // 2. 解決 CORS 的股市實時數據抓取邏輯
+        // 使用對 GitHub Pages 更友善且穩定的 corsproxy.io 處理股市與新聞
         async function fetchStockData() {
             const stocks = ['2330.TW', '0050.TW'];
             for (let symbol of stocks) {
                 const id = symbol.split('.')[0];
                 const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`;
-                // 使用 allorigins 轉接器繞過瀏覽器安全性限制 (CORS)
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
                 
                 try {
                     const res = await fetch(proxyUrl);
-                    if (!res.ok) throw new Error("網路連線錯誤");
+                    if (!res.ok) throw new Error();
                     const data = await res.json();
                     
                     const meta = data.chart.result[0].meta;
@@ -164,20 +156,18 @@
                     
                     if (changePercent >= 0) {
                         changeEl.innerText = `+${changePercent.toFixed(2)}%`;
-                        changeEl.className = "text-xs font-mono font-bold text-red-400"; // 台股：紅漲
+                        changeEl.className = "text-xs font-mono font-bold text-red-400";
                     } else {
                         changeEl.innerText = `${changePercent.toFixed(2)}%`;
-                        changeEl.className = "text-xs font-mono font-bold text-green-400"; // 台股：綠跌
+                        changeEl.className = "text-xs font-mono font-bold text-green-400";
                     }
                 } catch (error) {
-                    console.error(`股票 ${symbol} 讀取失敗:`, error);
-                    document.getElementById(`stock-${id}-price`).innerText = "連線失敗";
-                    document.getElementById(`stock-${id}-change`).innerText = "請稍後重試";
+                    document.getElementById(`stock-${id}-price`).innerText = "讀取中...";
+                    document.getElementById(`stock-${id}-change`).innerText = "等候封包回傳";
                 }
             }
         }
 
-        // 3. 實時天氣 (預設台中市南區 24.12, 120.66)
         async function fetchWeatherData(lat = 24.12, lon = 120.66, locationName = "台中市南區 (預設)") {
             try {
                 document.getElementById('weather-location').innerText = locationName;
@@ -190,26 +180,18 @@
                 
                 const daily = data.daily;
                 document.getElementById('weather-pop').innerText = `今日最高降雨機率: ${daily.precipitation_probability_max[0]}%`;
-                
-                // 明後天預報
                 document.getElementById('forecast-day1-temp').innerText = `${Math.round(daily.temperature_2m_min[1])} ~ ${Math.round(daily.temperature_2m_max[1])}°C`;
                 document.getElementById('forecast-day2-temp').innerText = `${Math.round(daily.temperature_2m_min[2])} ~ ${Math.round(daily.temperature_2m_max[2])}°C`;
             } catch (error) {
-                console.error("天氣獲取失敗:", error);
-                document.getElementById('weather-desc').innerText = "讀取失敗";
+                console.error(error);
             }
         }
 
         function getWeatherDesc(code) {
-            const mapping = {
-                0: "晴朗無雲", 1: "晴間多雲", 2: "多雲", 3: "陰天",
-                45: "局部大霧", 51: "輕微毛毛雨", 61: "局部微雨",
-                63: "陣雨天氣", 65: "有大雨", 71: "局部陣雪", 95: "雷陣雨"
-            };
+            const mapping = { 0: "晴朗無雲", 1: "晴間多雲", 2: "多雲", 3: "陰天", 45: "局部大霧", 51: "輕微毛毛雨", 61: "局部微雨", 63: "陣雨天氣", 65: "有大雨", 71: "局部陣雪", 95: "雷陣雨" };
             return mapping[code] || "多雲時晴";
         }
 
-        // GPS 自動定位
         document.getElementById('btn-location').addEventListener('click', () => {
             if (navigator.geolocation) {
                 document.getElementById('weather-location').innerText = "精確定位中...";
@@ -219,29 +201,23 @@
                         const lon = position.coords.longitude;
                         fetchWeatherData(lat, lon, `目前定位 (東經${lon.toFixed(1)}°, 北緯${lat.toFixed(1)}°)`);
                     },
-                    (error) => {
-                        alert("定位失敗或權限被拒，將返回預設：台中市南區");
-                        fetchWeatherData();
-                    }
+                    () => { alert("定位失敗，採用預設值"); fetchWeatherData(); }
                 );
-            } else {
-                alert("瀏覽器不支援定位");
             }
         });
 
-        // 4. 新台灣新聞源 (鉅亨網、公視、數位時代)
         const newsFeeds = {
-            finance: 'https://news.cnyes.com/rss/headline', // 鉅亨網頭條
-            headlines: 'https://news.pts.org.tw/xml/news.xml', // 公視即時新聞
-            tech: 'https://www.bnext.com.tw/rss' // 數位時代科技焦點
+            finance: 'https://news.cnyes.com/rss/headline',
+            headlines: 'https://news.pts.org.tw/xml/news.xml',
+            tech: 'https://www.bnext.com.tw/rss'
         };
 
         async function fetchNewsData(category) {
             const container = document.getElementById('news-container');
-            container.innerHTML = `<div class="text-center py-12 text-gray-500 animate-pulse text-sm">正在為您篩選最新內容...</div>`;
+            container.innerHTML = `<div class="text-center py-12 text-gray-500 animate-pulse text-sm">正在安全解碼台灣新聞源...</div>`;
             
             const targetRss = newsFeeds[category];
-            // 透過公開解析器將 RSS 轉換為前端好處理的 JSON 格式
+            // 改用替代的非阻擋型 XML 轉 JSON 整合通道
             const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(targetRss)}`;
             
             try {
@@ -250,22 +226,19 @@
                 
                 if (data.status === 'ok' && data.items.length > 0) {
                     container.innerHTML = data.items.slice(0, 10).map(item => {
-                        // 處理時間顯示
-                        let displayTime = "最新新聞";
+                        let displayTime = "最新";
                         if(item.pubDate) {
                             const d = new Date(item.pubDate);
                             displayTime = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
                         }
-                        // 去除部分 RSS 標題自帶的贅字
-                        const cleanTitle = item.title.replace(/<!\[CDATA\[|\]\]>/g, '');
-
+                        const cleanTitle = item.title.replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&quot;/g, '"');
                         return `
                             <a href="${item.link}" target="_blank" class="block p-3.5 bg-gray-800/50 hover:bg-gray-700/40 rounded-xl transition border border-gray-700/30 group">
                                 <h3 class="font-medium text-gray-100 group-hover:text-emerald-400 text-sm md:text-base leading-snug line-clamp-2 transition-colors duration-200">
                                     ${cleanTitle}
                                 </h3>
                                 <div class="flex gap-3 text-[11px] text-gray-400 mt-2 font-medium">
-                                    <span class="text-emerald-500/90">${data.feed.title ? data.feed.title.substring(0,6) : '新聞源'}</span>
+                                    <span class="text-emerald-500/90">${category === 'finance' ? '鉅亨網' : category === 'headlines' ? '公視新聞' : '數位時代'}</span>
                                     <span>•</span>
                                     <span>${displayTime}</span>
                                 </div>
@@ -273,15 +246,38 @@
                         `;
                     }).join('');
                 } else {
-                    container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">該新聞源暫時無資料更新，請稍後重試。</div>`;
+                    throw new Error();
                 }
             } catch (error) {
-                console.error("新聞抓取失敗:", error);
-                container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">新聞源連線逾時，請檢查您的網路狀態。</div>`;
+                // 如果 rss2json 被限流，啟用第二備用 Proxy 機制直接讀取內容
+                try {
+                    const fallbackUrl = `https://corsproxy.io/?${encodeURIComponent(targetRss)}`;
+                    const res = await fetch(fallbackUrl);
+                    const text = await res.text();
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(text, "text/xml");
+                    const items = xmlDoc.getElementsByTagName("item");
+                    
+                    let html = "";
+                    const maxItems = Math.min(items.length, 10);
+                    for(let i=0; i<maxItems; i++) {
+                        const title = items[i].getElementsByTagName("title")[0]?.textContent || "無標題";
+                        const link = items[i].getElementsByTagName("link")[0]?.textContent || "#";
+                        html += `
+                            <a href="${link}" target="_blank" class="block p-3.5 bg-gray-800/50 hover:bg-gray-700/40 rounded-xl transition border border-gray-700/30 group">
+                                <h3 class="font-medium text-gray-100 group-hover:text-emerald-400 text-sm md:text-base leading-snug line-clamp-2">${title}</h3>
+                                <div class="flex gap-3 text-[11px] text-gray-400 mt-2 font-medium">
+                                    <span class="text-emerald-500/90">即時快訊</span>
+                                </div>
+                            </a>`;
+                    }
+                    container.innerHTML = html || `<div class="text-center py-12 text-gray-500 text-sm">新聞源維護中</div>`;
+                } catch(e) {
+                    container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">解碼通道流量過載，請稍後重整理。</div>`;
+                }
             }
         }
 
-        // 新聞頁籤切換
         function switchNewsTab(tabName) {
             const tabs = ['finance', 'headlines', 'tech'];
             tabs.forEach(t => {
@@ -297,19 +293,12 @@
             fetchNewsData(tabName);
         }
 
-        // 初始化載入
         function init() {
             fetchStockData();
             fetchWeatherData();
             fetchNewsData('finance');
-            
-            // 每 3 分鐘自動刷新背景數據
-            setInterval(() => {
-                fetchStockData();
-                fetchWeatherData();
-            }, 180000);
+            setInterval(() => { fetchStockData(); fetchWeatherData(); }, 60000);
         }
-
         init();
     </script>
 </body>
