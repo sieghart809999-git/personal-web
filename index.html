@@ -57,7 +57,7 @@
                     <h2 class="text-base font-semibold flex items-center gap-2">
                         <i data-lucide="trending-up" class="text-emerald-400"></i> 台灣股市
                     </h2>
-                    <span class="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">實時連線</span>
+                    <span class="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">Worker 轉運</span>
                 </div>
                 <div class="space-y-3" id="stock-list">
                     <div class="flex justify-between items-center bg-gray-800/60 p-3 rounded-xl border border-gray-700/30">
@@ -92,9 +92,9 @@
             </div>
             
             <div class="flex border-b border-gray-700 mb-4 overflow-x-auto no-scrollbar whitespace-nowrap gap-2">
-                <button onclick="switchNewsTab('finance')" id="tab-finance" class="px-3 py-2 text-sm font-medium border-b-2 border-emerald-500 text-emerald-400 transition">鉅亨網財經</button>
-                <button onclick="switchNewsTab('headlines')" id="tab-headlines" class="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition">公視頭條</button>
-                <button onclick="switchNewsTab('tech')" id="tab-tech" class="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition">數位時代科技</button>
+                <button onclick="switchNewsTab('finance')" id="tab-finance" class="px-3 py-2 text-sm font-medium border-b-2 border-emerald-500 text-emerald-400 transition">Yahoo股市新聞</button>
+                <button onclick="switchNewsTab('headlines')" id="tab-headlines" class="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition">公視新聞網</button>
+                <button onclick="switchNewsTab('tech')" id="tab-tech" class="px-3 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition">科技新報</button>
             </div>
 
             <div id="news-container" class="space-y-3 flex-1 overflow-y-auto max-h-[580px] pr-1 no-scrollbar">
@@ -126,6 +126,11 @@
     <script>
         lucide.createIcons();
 
+        // =========================================================
+        // 🛠️ 請把下面這行換成你剛才測試成功的 Cloudflare Worker 網址
+        // =========================================================
+        const WORKER_BASE_URL = 'https://personal-web.sieghart809999.workers.dev/';
+
         function updateTime() {
             const now = new Date();
             document.getElementById('live-time').innerText = now.toLocaleString('zh-TW', { hour12: false });
@@ -133,16 +138,13 @@
         setInterval(updateTime, 1000);
         updateTime();
 
-        // 使用對 GitHub Pages 更友善且穩定的 corsproxy.io 處理股市與新聞
+        // 台灣股市：直接改走你的 Cloudflare Worker 專屬安全通道，告別外部 proxy 限制
         async function fetchStockData() {
             const stocks = ['2330.TW', '0050.TW'];
             for (let symbol of stocks) {
                 const id = symbol.split('.')[0];
-                const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`;
-                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-                
                 try {
-                    const res = await fetch(proxyUrl);
+                    const res = await fetch(`${WORKER_BASE_URL}/api/stock?symbol=${symbol}`);
                     if (!res.ok) throw new Error();
                     const data = await res.json();
                     
@@ -168,6 +170,7 @@
             }
         }
 
+        // 天氣觀測站數據
         async function fetchWeatherData(lat = 24.12, lon = 120.66, locationName = "台中市南區 (預設)") {
             try {
                 document.getElementById('weather-location').innerText = locationName;
@@ -206,75 +209,61 @@
             }
         });
 
-        const newsFeeds = {
-            finance: 'https://news.cnyes.com/rss/headline',
-            headlines: 'https://news.pts.org.tw/xml/news.xml',
-            tech: 'https://www.bnext.com.tw/rss'
-        };
-
+        // 核心動態排版更新：整合三個分頁至 Cloudflare Worker 網關
         async function fetchNewsData(category) {
             const container = document.getElementById('news-container');
-            container.innerHTML = `<div class="text-center py-12 text-gray-500 animate-pulse text-sm">正在安全解碼台灣新聞源...</div>`;
+            container.innerHTML = `<div class="text-center py-12 text-gray-500 animate-pulse text-sm">正在從雲端轉運站解碼最新新聞...</div>`;
             
-            const targetRss = newsFeeds[category];
-            // 改用替代的非阻擋型 XML 轉 JSON 整合通道
-            const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(targetRss)}`;
+            let workerPath = '';
+            let sourceName = '';
+            
+            // 依據前端點選的分頁，分流導向 Worker 的不同後端路徑
+            if (category === 'finance') {
+                workerPath = '/api/news/yahoo-stock';
+                sourceName = 'Yahoo股市';
+            } else if (category === 'headlines') {
+                workerPath = '/api/news/pts';
+                sourceName = '公視新聞';
+            } else if (category === 'tech') {
+                workerPath = '/api/news/technews';
+                sourceName = '科技新報';
+            }
             
             try {
-                const res = await fetch(apiUrl);
-                const data = await res.json();
+                // 向你的 Cloudflare Worker 發出連線請求
+                const res = await fetch(`${WORKER_BASE_URL}${workerPath}`);
+                if (!res.ok) throw new Error();
+                const text = await res.text();
                 
-                if (data.status === 'ok' && data.items.length > 0) {
-                    container.innerHTML = data.items.slice(0, 10).map(item => {
-                        let displayTime = "最新";
-                        if(item.pubDate) {
-                            const d = new Date(item.pubDate);
-                            displayTime = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                        }
-                        const cleanTitle = item.title.replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&quot;/g, '"');
-                        return `
-                            <a href="${item.link}" target="_blank" class="block p-3.5 bg-gray-800/50 hover:bg-gray-700/40 rounded-xl transition border border-gray-700/30 group">
-                                <h3 class="font-medium text-gray-100 group-hover:text-emerald-400 text-sm md:text-base leading-snug line-clamp-2 transition-colors duration-200">
-                                    ${cleanTitle}
-                                </h3>
-                                <div class="flex gap-3 text-[11px] text-gray-400 mt-2 font-medium">
-                                    <span class="text-emerald-500/90">${category === 'finance' ? '鉅亨網' : category === 'headlines' ? '公視新聞' : '數位時代'}</span>
-                                    <span>•</span>
-                                    <span>${displayTime}</span>
-                                </div>
-                            </a>
-                        `;
-                    }).join('');
-                } else {
-                    throw new Error();
-                }
-            } catch (error) {
-                // 如果 rss2json 被限流，啟用第二備用 Proxy 機制直接讀取內容
-                try {
-                    const fallbackUrl = `https://corsproxy.io/?${encodeURIComponent(targetRss)}`;
-                    const res = await fetch(fallbackUrl);
-                    const text = await res.text();
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(text, "text/xml");
-                    const items = xmlDoc.getElementsByTagName("item");
+                // 完美的 XML 瀏覽器端原生解析樹 (不依賴任何外部套件)
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(text, "text/xml");
+                const items = xmlDoc.getElementsByTagName("item");
+                
+                let html = "";
+                const maxItems = Math.min(items.length, 10);
+                for(let i=0; i<maxItems; i++) {
+                    const title = items[i].getElementsByTagName("title")[0]?.textContent || "無標題";
+                    const link = items[i].getElementsByTagName("link")[0]?.textContent || "#";
                     
-                    let html = "";
-                    const maxItems = Math.min(items.length, 10);
-                    for(let i=0; i<maxItems; i++) {
-                        const title = items[i].getElementsByTagName("title")[0]?.textContent || "無標題";
-                        const link = items[i].getElementsByTagName("link")[0]?.textContent || "#";
-                        html += `
-                            <a href="${link}" target="_blank" class="block p-3.5 bg-gray-800/50 hover:bg-gray-700/40 rounded-xl transition border border-gray-700/30 group">
-                                <h3 class="font-medium text-gray-100 group-hover:text-emerald-400 text-sm md:text-base leading-snug line-clamp-2">${title}</h3>
-                                <div class="flex gap-3 text-[11px] text-gray-400 mt-2 font-medium">
-                                    <span class="text-emerald-500/90">即時快訊</span>
-                                </div>
-                            </a>`;
-                    }
-                    container.innerHTML = html || `<div class="text-center py-12 text-gray-500 text-sm">新聞源維護中</div>`;
-                } catch(e) {
-                    container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">解碼通道流量過載，請稍後重整理。</div>`;
+                    // 防呆過濾字元與 CDATA 標籤，維持前端視覺乾淨
+                    const cleanTitle = title.replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&quot;/g, '"');
+                    
+                    html += `
+                        <a href="${link}" target="_blank" class="block p-3.5 bg-gray-800/50 hover:bg-gray-700/40 rounded-xl transition border border-gray-700/30 group">
+                            <h3 class="font-medium text-gray-100 group-hover:text-emerald-400 text-sm md:text-base leading-snug line-clamp-2 transition-colors duration-200">
+                                ${cleanTitle}
+                            </h3>
+                            <div class="flex gap-3 text-[11px] text-gray-400 mt-2 font-medium">
+                                <span class="text-emerald-500/90">${sourceName}</span>
+                                <span>•</span>
+                                <span>即時快訊</span>
+                            </div>
+                        </a>`;
                 }
+                container.innerHTML = html || `<div class="text-center py-12 text-gray-500 text-sm">新聞源維護中</div>`;
+            } catch (error) {
+                container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">雲端轉運站連線失敗，請確認網址配置或 Worker 運作狀態。</div>`;
             }
         }
 
@@ -296,7 +285,7 @@
         function init() {
             fetchStockData();
             fetchWeatherData();
-            fetchNewsData('finance');
+            fetchNewsData('finance'); // 預設載入第一個分頁
             setInterval(() => { fetchStockData(); fetchWeatherData(); }, 60000);
         }
         init();
