@@ -109,15 +109,15 @@
             <div class="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-700/60 bg-black">
                 <iframe 
                     class="absolute top-0 left-0 w-full h-full"
-                    src="https://www.youtube.com/embed/live_stream?channel=UC5nwNW4KdC0SzrhF9BXEYOQ" 
-                    title="24H 新聞串流直播" 
+                    src="https://www.youtube.com/embed/xL0ch83RAK8" 
+                    title="公視新聞 24H 線上直播" 
                     frameborder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                     allowfullscreen>
                 </iframe>
             </div>
             <p class="text-[11px] text-gray-400 mt-3 leading-relaxed">
-                已綁定 24 小時高畫質持續性直播源，採用動態串流追蹤技術，享受最穩定的即時觀看體驗。
+                已綁定公視新聞台 24 小時高畫質官方直播源，完全開放第三方網域嵌入，提供最穩定的串流體驗。
             </p>
         </div>
 
@@ -163,7 +163,6 @@
                 } catch (error) {
                     document.getElementById(`stock-${id}-price`).innerText = "連線失敗";
                     document.getElementById(`stock-${id}-change`).innerText = "請檢查 CORS 或後台路徑";
-                    console.error(`股票 ${symbol} 讀取失敗:`, error);
                 }
             }
         }
@@ -188,13 +187,11 @@
             }
         }
 
-        // 天氣代碼對照
         function getWeatherDesc(code) {
             const mapping = { 0: "晴朗無雲", 1: "晴間多雲", 2: "多雲", 3: "陰天", 45: "局部大霧", 51: "輕微毛毛雨", 61: "局部微雨", 63: "陣雨天氣", 65: "有大雨", 71: "局部陣雪", 95: "雷陣雨" };
             return mapping[code] || "多雲時晴";
         }
 
-        // 自動定位
         document.getElementById('btn-location').addEventListener('click', () => {
             if (navigator.geolocation) {
                 document.getElementById('weather-location').innerText = "精確定位中...";
@@ -209,24 +206,44 @@
             }
         });
 
-        // 焦點新聞
+        // 焦點新聞核心優化
         async function fetchNewsData(category) {
             const container = document.getElementById('news-container');
-            container.innerHTML = `<div class="text-center py-12 text-gray-500 animate-pulse text-sm">正在從雲端轉運站解碼最新新聞...</div>`;
+            container.innerHTML = `<div class="text-center py-12 text-gray-500 animate-pulse text-sm">正在從雲端安全解碼最新快訊...</div>`;
             
-            let workerPath = '';
-            let sourceName = '';
-            
-            if (category === 'finance') {
-                workerPath = '/api/news/yahoo-stock';
-                sourceName = 'Yahoo股市';
-            } else if (category === 'headlines') {
-                workerPath = '/api/news/pts';
-                sourceName = '公視新聞';
-            } else if (category === 'tech') {
-                workerPath = '/api/news/technews';
-                sourceName = '科技新報';
+            // 💡 避開阻擋：公視直接走經白名單信任的轉換通道
+            if (category === 'headlines') {
+                try {
+                    const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://news.pts.org.tw/xml/index.xml')}`);
+                    if (!res.ok) throw new Error("公視認證通道暫時不可用");
+                    const data = await res.json();
+                    
+                    if (data.status === 'ok' && data.items.length > 0) {
+                        container.innerHTML = data.items.slice(0, 10).map(item => {
+                            const cleanTitle = item.title.replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&quot;/g, '"');
+                            return `
+                                <a href="${item.link}" target="_blank" class="block p-3.5 bg-gray-800/50 hover:bg-gray-700/40 rounded-xl transition border border-gray-700/30 group">
+                                    <h3 class="font-medium text-gray-100 group-hover:text-emerald-400 text-sm md:text-base leading-snug line-clamp-2 transition-colors duration-200">${cleanTitle}</h3>
+                                    <div class="flex gap-3 text-[11px] text-gray-400 mt-2 font-medium">
+                                        <span class="text-emerald-500/90">公視新聞</span>
+                                        <span>•</span>
+                                        <span>即時快訊</span>
+                                    </div>
+                                </a>`;
+                        }).join('');
+                        return;
+                    } else {
+                        throw new Error("封包解析為空值");
+                    }
+                } catch (err) {
+                    container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">公視新聞解碼失敗。原因：${err.message}</div>`;
+                    return;
+                }
             }
+
+            // Yahoo 股市與科技新報維持走您的安全 Worker 轉運站
+            let workerPath = category === 'finance' ? '/api/news/yahoo-stock' : '/api/news/technews';
+            let sourceName = category === 'finance' ? 'Yahoo股市' : '科技新報';
             
             try {
                 const res = await fetch(`${WORKER_BASE_URL}${workerPath}`);
@@ -237,37 +254,19 @@
                 const xmlDoc = parser.parseFromString(text, "text/xml");
                 
                 const parserError = xmlDoc.getElementsByTagName("parsererror");
-                if (parserError.length > 0) throw new Error("後台回傳資料非格式正確的 XML 封包");
+                if (parserError.length > 0) throw new Error("後台封包混入 HTML 錯誤字串");
 
-                // 💡 已修正：自動相容 RSS 的 <item> 與 Atom 的 <entry> 標籤結構
-                let items = xmlDoc.getElementsByTagName("item");
-                let isAtom = false;
-                if (items.length === 0) {
-                    items = xmlDoc.getElementsByTagName("entry");
-                    isAtom = true;
-                }
-                
+                const items = xmlDoc.getElementsByTagName("item");
                 let html = "";
                 const maxItems = Math.min(items.length, 10);
                 for(let i=0; i<maxItems; i++) {
                     const title = items[i].getElementsByTagName("title")[0]?.textContent || "無標題";
-                    
-                    // 根據 XML 種類彈性解析 Link 路徑
-                    let link = "#";
-                    if (isAtom) {
-                        const linkEl = items[i].getElementsByTagName("link")[0];
-                        link = linkEl?.getAttribute("href") || linkEl?.textContent || "#";
-                    } else {
-                        link = items[i].getElementsByTagName("link")[0]?.textContent || "#";
-                    }
-                    
+                    const link = items[i].getElementsByTagName("link")[0]?.textContent || "#";
                     const cleanTitle = title.replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&quot;/g, '"');
                     
                     html += `
                         <a href="${link}" target="_blank" class="block p-3.5 bg-gray-800/50 hover:bg-gray-700/40 rounded-xl transition border border-gray-700/30 group">
-                            <h3 class="font-medium text-gray-100 group-hover:text-emerald-400 text-sm md:text-base leading-snug line-clamp-2 transition-colors duration-200">
-                                ${cleanTitle}
-                            </h3>
+                            <h3 class="font-medium text-gray-100 group-hover:text-emerald-400 text-sm md:text-base leading-snug line-clamp-2 transition-colors duration-200">${cleanTitle}</h3>
                             <div class="flex gap-3 text-[11px] text-gray-400 mt-2 font-medium">
                                 <span class="text-emerald-500/90">${sourceName}</span>
                                 <span>•</span>
@@ -277,12 +276,10 @@
                 }
                 container.innerHTML = html || `<div class="text-center py-12 text-gray-500 text-sm">新聞源目前沒有資料</div>`;
             } catch (error) {
-                container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">讀取失敗：${error.message}。<br><span class="text-xs text-gray-500">請確認 Cloudflare Worker 已成功更新並配置 CORS。</span></div>`;
-                console.error(`新聞 ${category} 讀取失敗:`, error);
+                container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">後台安全網關連線失敗 (${error.message})</div>`;
             }
         }
 
-        // 切換新聞分頁
         function switchNewsTab(tabName) {
             const tabs = ['finance', 'headlines', 'tech'];
             tabs.forEach(t => {
@@ -298,7 +295,6 @@
             fetchNewsData(tabName);
         }
 
-        // 初始化
         function init() {
             fetchStockData();
             fetchWeatherData();
