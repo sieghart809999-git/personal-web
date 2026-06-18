@@ -109,15 +109,15 @@
             <div class="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-700/60 bg-black">
                 <iframe 
                     class="absolute top-0 left-0 w-full h-full"
-                    src="https://www.youtube.com/embed/videoseries?list=UU0A6Ns3I0vntV7XSTuG-hNA" 
-                    title="公視新聞直播源" 
+                    src="https://www.youtube.com/embed/m_dhMSvUCIc" 
+                    title="TVBS 新聞直播" 
                     frameborder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                     allowfullscreen>
                 </iframe>
             </div>
             <p class="text-[11px] text-gray-400 mt-3 leading-relaxed">
-                採用 YouTube 官方影音清單同步機制。若公視正在進行即時直播，將會自動置頂於第一部影片播放。
+                已綁定 TVBS 新聞台 24 小時高畫質持續性直播源，享受最穩定的即時串流觀看體驗。
             </p>
         </div>
 
@@ -127,9 +127,9 @@
         lucide.createIcons();
 
         // =========================================================
-        // 🛠️ 請把下面這行換成你剛才測試成功的 Cloudflare Worker 網址
+        // 🛠️ 已修正：移除結尾斜線，避免與後方路徑重複拼出雙斜線 (//)
         // =========================================================
-        const WORKER_BASE_URL = 'https://personal-web.sieghart809999.workers.dev/';
+        const WORKER_BASE_URL = 'https://personal-web.sieghart809999.workers.dev';
 
         function updateTime() {
             const now = new Date();
@@ -138,14 +138,14 @@
         setInterval(updateTime, 1000);
         updateTime();
 
-        // 台灣股市：直接改走你的 Cloudflare Worker 專屬安全通道，告別外部 proxy 限制
+        // 台灣股市
         async function fetchStockData() {
             const stocks = ['2330.TW', '0050.TW'];
             for (let symbol of stocks) {
                 const id = symbol.split('.')[0];
                 try {
                     const res = await fetch(`${WORKER_BASE_URL}/api/stock?symbol=${symbol}`);
-                    if (!res.ok) throw new Error();
+                    if (!res.ok) throw new Error(`HTTP 錯誤! 狀態碼: ${res.status}`);
                     const data = await res.json();
                     
                     const meta = data.chart.result[0].meta;
@@ -164,8 +164,9 @@
                         changeEl.className = "text-xs font-mono font-bold text-green-400";
                     }
                 } catch (error) {
-                    document.getElementById(`stock-${id}-price`).innerText = "讀取中...";
-                    document.getElementById(`stock-${id}-change`).innerText = "等候封包回傳";
+                    document.getElementById(`stock-${id}-price`).innerText = "連線失敗";
+                    document.getElementById(`stock-${id}-change`).innerText = "請檢查 CORS 或後台路徑";
+                    console.error(`股票 ${symbol} 讀取失敗:`, error);
                 }
             }
         }
@@ -186,15 +187,17 @@
                 document.getElementById('forecast-day1-temp').innerText = `${Math.round(daily.temperature_2m_min[1])} ~ ${Math.round(daily.temperature_2m_max[1])}°C`;
                 document.getElementById('forecast-day2-temp').innerText = `${Math.round(daily.temperature_2m_min[2])} ~ ${Math.round(daily.temperature_2m_max[2])}°C`;
             } catch (error) {
-                console.error(error);
+                console.error("天氣數據讀取失敗:", error);
             }
         }
 
+        // 天氣代碼對照
         function getWeatherDesc(code) {
             const mapping = { 0: "晴朗無雲", 1: "晴間多雲", 2: "多雲", 3: "陰天", 45: "局部大霧", 51: "輕微毛毛雨", 61: "局部微雨", 63: "陣雨天氣", 65: "有大雨", 71: "局部陣雪", 95: "雷陣雨" };
             return mapping[code] || "多雲時晴";
         }
 
+        // 自動定位
         document.getElementById('btn-location').addEventListener('click', () => {
             if (navigator.geolocation) {
                 document.getElementById('weather-location').innerText = "精確定位中...";
@@ -209,7 +212,7 @@
             }
         });
 
-        // 核心動態排版更新：整合三個分頁至 Cloudflare Worker 網關
+        // 焦點新聞
         async function fetchNewsData(category) {
             const container = document.getElementById('news-container');
             container.innerHTML = `<div class="text-center py-12 text-gray-500 animate-pulse text-sm">正在從雲端轉運站解碼最新新聞...</div>`;
@@ -217,7 +220,6 @@
             let workerPath = '';
             let sourceName = '';
             
-            // 依據前端點選的分頁，分流導向 Worker 的不同後端路徑
             if (category === 'finance') {
                 workerPath = '/api/news/yahoo-stock';
                 sourceName = 'Yahoo股市';
@@ -230,14 +232,16 @@
             }
             
             try {
-                // 向你的 Cloudflare Worker 發出連線請求
                 const res = await fetch(`${WORKER_BASE_URL}${workerPath}`);
-                if (!res.ok) throw new Error();
+                if (!res.ok) throw new Error(`HTTP 錯誤! 狀態碼: ${res.status}`);
                 const text = await res.text();
                 
-                // 完美的 XML 瀏覽器端原生解析樹 (不依賴任何外部套件)
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(text, "text/xml");
+                
+                const parserError = xmlDoc.getElementsByTagName("parsererror");
+                if (parserError.length > 0) throw new Error("Worker 回傳的資料非格式正確的 XML 封包");
+
                 const items = xmlDoc.getElementsByTagName("item");
                 
                 let html = "";
@@ -245,8 +249,6 @@
                 for(let i=0; i<maxItems; i++) {
                     const title = items[i].getElementsByTagName("title")[0]?.textContent || "無標題";
                     const link = items[i].getElementsByTagName("link")[0]?.textContent || "#";
-                    
-                    // 防呆過濾字元與 CDATA 標籤，維持前端視覺乾淨
                     const cleanTitle = title.replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&quot;/g, '"');
                     
                     html += `
@@ -263,10 +265,12 @@
                 }
                 container.innerHTML = html || `<div class="text-center py-12 text-gray-500 text-sm">新聞源維護中</div>`;
             } catch (error) {
-                container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">雲端轉運站連線失敗，請確認網址配置或 Worker 運作狀態。</div>`;
+                container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">雲端連線失敗。請至 Cloudflare 檢查 CORS 設定。</div>`;
+                console.error(`新聞 ${category} 讀取失敗:`, error);
             }
         }
 
+        // 切換新聞分頁
         function switchNewsTab(tabName) {
             const tabs = ['finance', 'headlines', 'tech'];
             tabs.forEach(t => {
@@ -282,10 +286,11 @@
             fetchNewsData(tabName);
         }
 
+        // 初始化
         function init() {
             fetchStockData();
             fetchWeatherData();
-            fetchNewsData('finance'); // 預設載入第一個分頁
+            fetchNewsData('finance');
             setInterval(() => { fetchStockData(); fetchWeatherData(); }, 60000);
         }
         init();
