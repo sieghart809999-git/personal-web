@@ -109,15 +109,15 @@
             <div class="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-700/60 bg-black">
                 <iframe 
                     class="absolute top-0 left-0 w-full h-full"
-                    src="https://www.youtube.com/embed/m_dhMSvUCIc" 
-                    title="TVBS 新聞直播" 
+                    src="https://www.youtube.com/embed/live_stream?channel=UC5nwNW4KdC0SzrhF9BXEYOQ" 
+                    title="24H 新聞串流直播" 
                     frameborder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                     allowfullscreen>
                 </iframe>
             </div>
             <p class="text-[11px] text-gray-400 mt-3 leading-relaxed">
-                已綁定 TVBS 新聞台 24 小時高畫質持續性直播源，享受最穩定的即時串流觀看體驗。
+                已綁定 24 小時高畫質持續性直播源，採用動態串流追蹤技術，享受最穩定的即時觀看體驗。
             </p>
         </div>
 
@@ -126,9 +126,6 @@
     <script>
         lucide.createIcons();
 
-        // =========================================================
-        // 🛠️ 已修正：移除結尾斜線，避免與後方路徑重複拼出雙斜線 (//)
-        // =========================================================
         const WORKER_BASE_URL = 'https://personal-web.sieghart809999.workers.dev';
 
         function updateTime() {
@@ -240,15 +237,30 @@
                 const xmlDoc = parser.parseFromString(text, "text/xml");
                 
                 const parserError = xmlDoc.getElementsByTagName("parsererror");
-                if (parserError.length > 0) throw new Error("Worker 回傳的資料非格式正確的 XML 封包");
+                if (parserError.length > 0) throw new Error("後台回傳資料非格式正確的 XML 封包");
 
-                const items = xmlDoc.getElementsByTagName("item");
+                // 💡 已修正：自動相容 RSS 的 <item> 與 Atom 的 <entry> 標籤結構
+                let items = xmlDoc.getElementsByTagName("item");
+                let isAtom = false;
+                if (items.length === 0) {
+                    items = xmlDoc.getElementsByTagName("entry");
+                    isAtom = true;
+                }
                 
                 let html = "";
                 const maxItems = Math.min(items.length, 10);
                 for(let i=0; i<maxItems; i++) {
                     const title = items[i].getElementsByTagName("title")[0]?.textContent || "無標題";
-                    const link = items[i].getElementsByTagName("link")[0]?.textContent || "#";
+                    
+                    // 根據 XML 種類彈性解析 Link 路徑
+                    let link = "#";
+                    if (isAtom) {
+                        const linkEl = items[i].getElementsByTagName("link")[0];
+                        link = linkEl?.getAttribute("href") || linkEl?.textContent || "#";
+                    } else {
+                        link = items[i].getElementsByTagName("link")[0]?.textContent || "#";
+                    }
+                    
                     const cleanTitle = title.replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&quot;/g, '"');
                     
                     html += `
@@ -263,9 +275,9 @@
                             </div>
                         </a>`;
                 }
-                container.innerHTML = html || `<div class="text-center py-12 text-gray-500 text-sm">新聞源維護中</div>`;
+                container.innerHTML = html || `<div class="text-center py-12 text-gray-500 text-sm">新聞源目前沒有資料</div>`;
             } catch (error) {
-                container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">雲端連線失敗。請至 Cloudflare 檢查 CORS 設定。</div>`;
+                container.innerHTML = `<div class="text-center py-12 text-red-400 text-sm">讀取失敗：${error.message}。<br><span class="text-xs text-gray-500">請確認 Cloudflare Worker 已成功更新並配置 CORS。</span></div>`;
                 console.error(`新聞 ${category} 讀取失敗:`, error);
             }
         }
